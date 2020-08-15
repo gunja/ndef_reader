@@ -113,7 +113,7 @@ int PN532::wrapPayloadToBuffer(char *sendBuffer,
         const char *payload, int sz)
 {
     memcpy(sendBuffer, messageHeader, sizeof(messageHeader));
-    int offset = sizeof(messageHeader);
+    int offset = sizeof(messageHeader) -1;
     sendBuffer[offset++] = static_cast<unsigned char>(sz);
     sendBuffer[offset++] = static_cast<unsigned char>(-sz);
     memcpy(sendBuffer + offset, payload, sz);

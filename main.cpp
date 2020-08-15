@@ -24,9 +24,10 @@ int main(int argc, char *argv[])
             {
                 pn532.handleCommunication();
             }
-        }
-        fprintf(stderr, "Failed to open Serial port\n");
-        sleep(1);
+        } else {
+	        fprintf(stderr, "Failed to open Serial port\n");
+        	sleep(1);
+	}
     }
 
     return 0;
