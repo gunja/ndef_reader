@@ -8,6 +8,8 @@
 
 const char PN532::wakeup[] = "\x55\x55\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 const char PN532::messageHeader[]="\x00\x00\xff";
+const char PN532::ack[]  ="\x00\x00\xFF\x00\xff\x00";
+const char PN532::nack[] ="\x00\x00\xFF\xff\x00\x00";
 PN532::PN532() : fd(-1), receivedBytes(0)
    , isAck(false), isNack(false)
 {
@@ -71,9 +73,21 @@ bool PN532::handleCommunication()
 {
     do {
         char * message = readMessage();
+	printf("received a message\n");
+	for(int i=0; i < latestMessageLength; ++i)
+		printf("0x%02x ", latestMessage[i]);
+	printf("\n");
         
     } while( receivedBytes > 0);
     return false;
+}
+
+void PN532::dumpMessage()
+{
+    printf("received a message\n");
+    for(int i=0; i < latestMessageLength; ++i)
+        printf("0x%02x ", latestMessage[i]);
+    printf("\n");
 }
 
 void PN532::warmUp()
@@ -153,7 +167,9 @@ bool PN532::confirmAck()
                 receivedBytes +=r;
             if (isAckOrNack())
             {
-                receivedBytes = 0;
+                receivedBytes -= sizeof(ack) - 1;
+		memmove(receivedBuffer, receivedBuffer + sizeof(ack) - 1,
+				receivedBytes);
                 return true;
             }
         }
@@ -193,7 +209,7 @@ char * PN532::readMessage()
         if (canOpenEnvelope())
         {
             removeEnvelope();
-            return receivedBuffer;
+            return latestMessage;
         }
     } while (r>0);
     return NULL;
@@ -202,8 +218,6 @@ char * PN532::readMessage()
 
 bool PN532::isAckOrNack()
 {
-    static const char ack[]  ="\x00\x00\xFF\x00\xff\x00";
-    static const char nack[] ="\x00\x00\xFF\xff\x00\x00";
     if (receivedBytes < sizeof(ack))
         return false;
     isAck = (memcmp(ack, receivedBuffer, sizeof(ack)) == 0);
@@ -214,7 +228,7 @@ bool PN532::isAckOrNack()
 
 bool PN532::canOpenEnvelope()
 {
-    static const char preamble[] ="\x00\x00\xff";
+    static const char preamble[3] ={0x00, 0x00, 0xff};
     if (receivedBytes < 5)
         return false;
 
@@ -240,21 +254,24 @@ bool PN532::removeEnvelope()
 {
     int len = static_cast<unsigned char>(receivedBuffer[3]);
     //if we are here, we a definitive, that there's enough data
-    memmove(receivedBuffer, receivedBuffer + 5, len + 2);
+    memmove(latestMessage, receivedBuffer + 5, len + 2);
     receivedBytes -= 5;
 
     // let's sum up bytes in a message
     unsigned char sum = 0;
     for(int i=0; i <= len; ++i)
     {
-        sum += receivedBuffer[i];
+        sum += latestMessage[i];
     }
     if ( sum == 0)
     {
-        receivedBytes -= 2;
+	latestMessageLength = len;
+	memmove(receivedBuffer, receivedBuffer + len + 7,
+			receivedBytes - (len + 2));
+        receivedBytes -= len + 2;
         return true;
     }
-    receivedBytes = 0;
+    receivedBytes -= len + 6;
     return false;
 }
 
