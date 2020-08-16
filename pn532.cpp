@@ -9,6 +9,7 @@
 const char PN532::wakeup[] = "\x55\x55\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 const char PN532::messageHeader[]="\x00\x00\xff";
 PN532::PN532() : fd(-1), receivedBytes(0)
+   , isAck(false), isNack(false)
 {
 }
 
@@ -68,6 +69,10 @@ bool PN532::startCommunication()
 
 bool PN532::handleCommunication()
 {
+    do {
+        char * message = readMessage();
+        
+    } while( receivedBytes > 0);
     return false;
 }
 
@@ -144,6 +149,8 @@ bool PN532::confirmAck()
         if (r > 0)
         {
             r =  read(fd, receivedBuffer + receivedBytes, 600 - receivedBytes);
+            if (r > 0)
+                receivedBytes +=r;
             if (isAckOrNack())
             {
                 receivedBytes = 0;
@@ -163,9 +170,95 @@ char * PN532::sendReceivePayload(const char *payload, int sz)
 
 char * PN532::readMessage()
 {
+    // there are possibilities to exit this function:
+    // all required data received  -> returned payload w/o envelope
+    // no new byte received in some amount of time -> error
+    fd_set mask;
+    struct timeval timeout = { .tv_sec = 0,
+            .tv_usec = 10 * 1000 };
+    int r, n;
+
+    FD_ZERO(&mask);
+    FD_SET(fd, &mask);
+
+    do
+    {
+        r = select(fd+1, &mask, NULL, NULL, &timeout);
+        if (r > 0)
+        {
+            r =  read(fd, receivedBuffer + receivedBytes, 600 - receivedBytes);
+            if (r > 0)
+                receivedBytes +=r;
+        }
+        if (canOpenEnvelope())
+        {
+            removeEnvelope();
+            return receivedBuffer;
+        }
+    } while (r>0);
+    return NULL;
+    
 }
 
 bool PN532::isAckOrNack()
+{
+    static const char ack[]  ="\x00\x00\xFF\x00\xff\x00";
+    static const char nack[] ="\x00\x00\xFF\xff\x00\x00";
+    if (receivedBytes < sizeof(ack))
+        return false;
+    isAck = (memcmp(ack, receivedBuffer, sizeof(ack)) == 0);
+    isNack = (memcmp(nack, receivedBuffer, sizeof(ack)) == 0);
+
+    return (isAck || isNack);
+}
+
+bool PN532::canOpenEnvelope()
+{
+    static const char preamble[] ="\x00\x00\xff";
+    if (receivedBytes < 5)
+        return false;
+
+    if ( memcmp(receivedBuffer, preamble, sizeof(preamble)) != 0)
+        return false;
+    int len = static_cast<unsigned char>(receivedBuffer[3]);
+    int lenConfirm = static_cast<unsigned char>(receivedBuffer[4]);
+
+    if (len == 0xff && lenConfirm == 0xff)
+    {
+        return canOpenLongMessageEnvelope();
+    }
+    if (len + lenConfirm != 0x100)
+        return false;
+
+    if (receivedBytes < len + 7)
+        return false;
+
+    return true;
+}
+
+bool PN532::removeEnvelope()
+{
+    int len = static_cast<unsigned char>(receivedBuffer[3]);
+    //if we are here, we a definitive, that there's enough data
+    memmove(receivedBuffer, receivedBuffer + 5, len + 2);
+    receivedBytes -= 5;
+
+    // let's sum up bytes in a message
+    unsigned char sum = 0;
+    for(int i=0; i <= len; ++i)
+    {
+        sum += receivedBuffer[i];
+    }
+    if ( sum == 0)
+    {
+        receivedBytes -= 2;
+        return true;
+    }
+    receivedBytes = 0;
+    return false;
+}
+
+bool PN532::canOpenLongMessageEnvelope()
 {
     return false;
 }

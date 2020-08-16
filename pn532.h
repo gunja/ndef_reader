@@ -15,6 +15,12 @@ class PN532
     int receivedBytes;
     char * readMessage();
     bool isAckOrNack();
+    bool isAck;
+    bool isNack;
+
+    bool canOpenEnvelope();
+    bool canOpenLongMessageEnvelope();
+    bool removeEnvelope();
   public:
     PN532();
     ~PN532();
