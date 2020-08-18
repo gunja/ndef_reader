@@ -43,29 +43,52 @@ bool PN532::startCommunication()
     warmUp();
     //SAMConfiguration
     
+    printf("sam configuration\n");
     sendReceivePayload("\xd4\x14\x01", 3);
+    dumpMessage();
     //Diagnose
+    printf("diagnose\n");
     sendReceivePayload("\xd4\x00\x00\x6c\x69\x62\x6e\x66\x63", 9);
+    dumpMessage();
     //GetFirmwareVersion
     sendReceivePayload("\xd4\x02", 2);
+    dumpMessage();
     //SetParameters
+    printf("set parameters\n");
     sendReceivePayload("\xd4\x12\x14", 3);
+    dumpMessage();
     //ReadRegister
+    printf("read register\n");
     sendReceivePayload("\xd4\x06\x63\x02\x63\x03\x63\x0d\x63\x38\x63\x3d", 12);
+    dumpMessage();
     //WriteRegister
+    printf("write register\n");
     sendReceivePayload("\xd4\x08\x63\x02\x80\x63\x03\x80", 8);
+    dumpMessage();
     //RFConfiguration
+    printf("rf configuration\n");
     sendReceivePayload("\xd4\x32\x01\x00", 4);
+    dumpMessage();
     //RFConfiguration
+    printf("rf configuration\n");
     sendReceivePayload("\xd4\x32\x01\x01", 4);
+    dumpMessage();
     //RFConfiguration
+    printf("rf configuration\n");
     sendReceivePayload("\xd4\x32\x05\xff\xff\xff", 6);
+    dumpMessage();
     //ReadRegister
+    printf("read register\n");
     sendReceivePayload("\xd4\x06\x63\x02\x63\x03\x63\x05\x63\x38\x63\x3c\x63\x3d", 14);
+    dumpMessage();
     //WriteRegister
+    printf("write register\n");
     sendReceivePayload("\xd4\x08\x63\x05\x40\x63\x3c\x10", 8);
+    dumpMessage();
     // InAutoPoll
+    printf("in auto poll\n");
     sendReceivePayload("\xd4\x60\x14\x02\x20\x10\x03\x11\x12\x04", 10);
+    dumpMessage();
     return true;
 }
 
@@ -73,12 +96,16 @@ bool PN532::handleCommunication()
 {
     do {
         char * message = readMessage();
+	if (latestMessageLength) {
 	printf("received a message\n");
 	for(int i=0; i < latestMessageLength; ++i)
 		printf("0x%02x ", latestMessage[i]);
 	printf("\n");
-        
-    } while( receivedBytes > 0);
+	}
+        if (latestMessageLength) {
+		treatInformational();
+	}
+    } while( 1);
     return false;
 }
 
@@ -206,14 +233,15 @@ char * PN532::readMessage()
             if (r > 0)
                 receivedBytes +=r;
         }
+	confirmAck();
         if (canOpenEnvelope())
         {
             removeEnvelope();
             return latestMessage;
         }
     } while (r>0);
+    latestMessageLength = 0;
     return NULL;
-    
 }
 
 bool PN532::isAckOrNack()
@@ -280,3 +308,66 @@ bool PN532::canOpenLongMessageEnvelope()
     return false;
 }
 
+void PN532::treatInformational()
+{
+   if (latestMessage[0] == 0xd5 && latestMessage[1] == 0x41)
+	   return treatBlockData();
+   if (latestMessage[0] != 0xd5 || latestMessage[1] != 0x61)
+     return;
+
+   uint8_t tagsCount = latestMessage[2];
+   uint8_t tagType = latestMessage[3];
+   uint8_t ln1 = latestMessage[4];
+
+   if (tagType == 0x11) {
+	   printf("Felica type\n");
+	   printf("length = %d\n", ln1);
+	   printf("logical number = %x\n", static_cast<int>( latestMessage[5]));
+	   printf("POL_RES = %x\n", latestMessage[6]);
+	   printf("Response code = %x\n", latestMessage[7]);
+	   printf("message rest = ");
+	   for(int i =0; i < ln1 - 1; ++i) printf(" %02x", latestMessage[8+i]);
+	   printf("\n");
+   }
+   if (tagType == 0x10) {
+	   printf("Mifare type\n");
+	   printf("length = %d\n", ln1);
+	   printf("logical number = %x\n", static_cast<int>( latestMessage[5]));
+	   printf("SENS_RES = %04x\n", 256 *latestMessage[6] + latestMessage[7]);
+	   printf("SEL_RES = %02x\n", latestMessage[8]);
+	   printf("NFCID1t length = %d\n", latestMessage[9]);
+	   printf("NFCID1t = ");
+	   for(int i=0; i < latestMessage[9]; ++i) printf(" %02x", latestMessage[10 + i]);
+	   printf("\n");
+	   currentBlock = 0;
+	   readBlock(currentBlock);
+   }
+
+}
+
+void PN532::readBlock(int blockNum)
+{
+	char exchange[] = {0xd4,
+		0x40, 0x01, 0x30, 0x00};
+	exchange[4] = blockNum;
+	sendDeterministic(exchange, 5);
+}
+
+void PN532::treatBlockData()
+{
+	printf("current Block =%d\n", currentBlock);
+	for(int i=0; i < latestMessageLength; ++i)
+	{
+		printf("%02x ", latestMessage[i]);
+	}
+	printf("\n");
+	if (currentBlock == 0) {
+		currentBlock += 4;
+		readBlock(currentBlock);
+		return;
+	}
+	if(currentBlock > 3 && currentBlock < 8)
+	{
+		// here should be search for NDEF start
+	}
+}

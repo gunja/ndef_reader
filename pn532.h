@@ -1,6 +1,8 @@
 #ifndef PN532_H
 #define PN532_H
 
+#include <stdint.h>
+
 class PN532
 {
     int fd;
@@ -27,6 +29,10 @@ class PN532
     bool removeEnvelope();
 
     void dumpMessage();
+    void treatInformational();
+    int currentBlock;
+    void readBlock(int);
+    void treatBlockData();
   public:
     PN532();
     ~PN532();
@@ -34,5 +40,15 @@ class PN532
     bool startCommunication();
     bool handleCommunication();
 };
+
+#pragma pack(push, 1)
+struct messageD561
+{
+	uint8_t tagsCount;
+	uint8_t msgLen;
+	uint8_t logicalNumber;
+
+};
+#pragma pack(pop)
 
 #endif
