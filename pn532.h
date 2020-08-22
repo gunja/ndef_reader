@@ -2,6 +2,7 @@
 #define PN532_H
 
 #include <stdint.h>
+#include <sys/time.h>
 
 class PN532
 {
@@ -15,6 +16,7 @@ class PN532
     int wrapPayloadToBuffer(char *sendBuffer, const char *payload, int sz);
     char *sendReceivePayload(const char *payload, int);
     bool confirmAck();
+    bool sendAck();
     char receivedBuffer[600];
     int receivedBytes;
     char latestMessage[300];
@@ -33,6 +35,8 @@ class PN532
     int currentBlock;
     void readBlock(int);
     void treatBlockData();
+
+    struct timeval messageReceivedLastStamp;
   public:
     PN532();
     ~PN532();

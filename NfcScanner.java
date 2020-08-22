@@ -865,7 +865,4 @@ public abstract class NfcScanner
 		}).start();
 	}
 }
-	
-
-	
 
