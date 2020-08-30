@@ -7,13 +7,13 @@
 class PN532
 {
     int fd;
-    static const char wakeup[];
-    static const char messageHeader[];
-    static const char ack[];
-    static const char nack[];
-    void warmUp();
-    bool sendDeterministic(const char *payload, int sz);
-    int wrapPayloadToBuffer(char *sendBuffer, const char *payload, int sz);
+    static const unsigned char wakeup[];
+    static const unsigned char messageHeader[];
+    static const unsigned char ack[];
+    static const unsigned char nack[];
+    bool warmUp();
+    bool sendDeterministic(const unsigned char *payload, int sz);
+    int wrapPayloadToBuffer(char *sendBuffer, const unsigned char *payload, int sz);
     char *sendReceivePayload(const char *payload, int);
     bool confirmAck();
     bool sendAck();
@@ -33,10 +33,15 @@ class PN532
     void dumpMessage();
     void treatInformational();
     int currentBlock;
-    void readBlock(int);
+    bool sendCMD_readBlock(int);
     void treatBlockData();
 
     struct timeval messageReceivedLastStamp;
+    bool sendCMD_InAutoPoll();
+    bool treatAutoPollReply();
+
+    void dumpFelicaCardInfo();
+    void dumpMifareTypeInfo();
   public:
     PN532();
     ~PN532();
