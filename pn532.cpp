@@ -220,13 +220,13 @@ bool PN532::warmUp()
             sizeof(wakeup) -r);
         if (s > 0)
             r += s;
-        if (s == 0)
+	else { if (s == 0)
         {
             //TODO strange situation
         }
         else {
             return false;
-        }
+        }}
     }
     return true;
 }
