@@ -33,9 +33,20 @@ bool PN532::openSerial(const char *deviceName)
     fd = open(buff, O_RDWR | O_NOCTTY | O_NDELAY);
     if (fd >= 0)
     {
-        //TODO set serial parameters if needed
+        setSerialParams();
     }
     return (fd >= 0);
+}
+
+bool PN532::setSerialParams()
+{
+    tcgetattr(fd, &prev_sets);
+    struct termios new_sets;
+    new_sets = prev_sets;
+    cfmakeraw(&new_sets);
+    new_sets.c_oflag &= ~ONLCR;
+    cfsetspeed(&new_sets, B115200);
+    return (tcsetattr(fd, TCSANOW, &new_sets)== 0);
 }
 
 bool PN532::startCommunication()

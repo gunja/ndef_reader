@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <sys/time.h>
+#include <termios.h>
+#include <unistd.h>
 
 class PN532
 {
@@ -11,6 +13,8 @@ class PN532
     static const unsigned char messageHeader[];
     static const unsigned char ack[];
     static const unsigned char nack[];
+    struct termios prev_sets;
+    bool setSerialParams();
     bool warmUp();
     bool sendDeterministic(const unsigned char *payload, int sz);
     int wrapPayloadToBuffer(char *sendBuffer, const unsigned char *payload, int sz);
