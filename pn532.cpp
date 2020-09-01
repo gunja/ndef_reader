@@ -455,7 +455,10 @@ void PN532::treatInformational()
    if (latestMessage[0] == 0xd5 && latestMessage[1] == 0x41)
        return treatBlockData();
    if (latestMessage[0] == 0xd5 && latestMessage[1] == 0x61)
-     treatAutoPollReply();
+   {
+        treatAutoPollReply();
+        return;
+    }
 
     fprintf(stderr, "Unhadle message\n");
     dumpMessage();
