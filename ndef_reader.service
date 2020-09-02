@@ -1,0 +1,9 @@
+[Unit]
+Description=NDEF reader C-based application
+
+[Service]
+Type=simple
+ExecStart=/home/nfcuser/ndef_reader/ndef_reader -d /tmp/NDEFreaderOut
+
+[Install]
+WantedBy=multi-user.target
