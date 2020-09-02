@@ -256,11 +256,13 @@ bool PN532::sendAck()
         }
         r += s;
     }
+#ifdef WIDE_INFORM
     printf("send Ack\n");
     for(int i=0; i < r; ++i) {
 	    printf("%02x ", buff[i]);
     }
     printf("\n");
+#endif
     return (r == sendSize);
 }
 
@@ -394,13 +396,15 @@ bool PN532::isAckOrNack()
     isAck = (memcmp(ack, receivedBuffer, sizeof(ack)) == 0);
     isNack = (memcmp(nack, receivedBuffer, sizeof(ack)) == 0);
 
-    if (isAck || isNack) { printf("      ack or Nack received\n");
+#ifdef WIDE_INFORM
+    if (isAck || isNack) {
+            printf("      ack or Nack received\n");
 	    printf("buffer remains:\n");
 	    for(int i=0; i < receivedBytes; ++i)
 		    printf("%02x ", receivedBuffer[i]);
 	    printf("\n");
     };
-
+#endif
 
     return (isAck || isNack);
 }
@@ -448,7 +452,9 @@ bool PN532::removeEnvelope()
     memmove(receivedBuffer, receivedBuffer + len + 7,
             receivedBytes - (len + 2));
         receivedBytes -= len + 2;
+#ifdef WIDE_INFORM
 	printf("in removeEnvelope\n"); dumpMessage();
+#endif
 	gettimeofday(&messageReceivedLastStamp, NULL);
         return true;
     }
@@ -472,8 +478,10 @@ void PN532::treatInformational()
     }
 
     fprintf(stderr, "Unhadle message\n");
+#ifdef WIDE_INFORM
     dumpMessage();
     fprintf(stderr, "Forcing Auto-Poll again\n");
+#endif
     sendCMD_InAutoPoll();
 }
 
@@ -484,7 +492,9 @@ bool PN532::treatAutoPollReply()
 
    if (tagsCount > 1)
    {
+#ifdef WIDE_INFORM
        printf("several tags found (%d). can not read blocks \n", tagsCount);
+#endif
             sendCMD_InAutoPoll();
         return true;
    }
@@ -492,16 +502,22 @@ bool PN532::treatAutoPollReply()
    {
 	   struct timeval now;
 	   gettimeofday(&now, NULL);
+#ifdef WIDE_INFORM
            printf(" %lu.%06ld After polling got 0 tags found. Re-initializing\n", now.tv_sec, now.tv_usec);
+#endif
         sendCMD_InAutoPoll();
         return true;
    }
 
    if (tagType == 0x11) {
+#ifdef WIDE_INFORM
         dumpFelicaCardInfo();
+#endif
    }
    if (tagType == 0x10) {
+#ifdef WIDE_INFORM
         dumpMifareTypeInfo();
+#endif
        currentBlock = 0;
        return sendCMD_readBlock(currentBlock);
    }
@@ -521,12 +537,14 @@ bool PN532::sendCMD_readBlock(int blockNum)
 
 void PN532::treatBlockData()
 {
+#ifdef WIDE_INFORM
     printf("current Block =%d\n", currentBlock);
     for(int i=0; i < latestMessageLength; ++i)
     {
         printf("%02x ", latestMessage[i]);
     }
     printf("\n");
+#endif
     if (currentBlock == 0) {
         currentBlock += 4;
         sendCMD_readBlock(currentBlock);
@@ -566,8 +584,10 @@ void PN532::treatBlockData()
         int langCodeLen = latestMessage[ndefStartData+6]& 0x3f;
         int ndefDataLen = latestMessage[ndefStartData+1] - 5 - langCodeLen;
         int wellKnownType = latestMessage[ndefStartData + 5];
+#ifdef WIDE_INFORM
         printf("found NDEF: length =%d  record type = %02x\n", ndefDataLen,
                 wellKnownType);
+#endif
         int terminatorPosition = ndefStartData + latestMessage[ndefStartData+1]+2;
         if (terminatorPosition > latestMessageLength)
         {
@@ -580,7 +600,9 @@ void PN532::treatBlockData()
         if (static_cast<unsigned int>(latestMessage[ndefStartData + 
                     latestMessage[ndefStartData+1]+2]) == 0xFE)
         {
+#ifdef WIDE_INFORM
             printf("End of message found\nCreating file");
+#endif
             char *buffer = new char[ndefDataLen +1];
             memset(buffer, 0, ndefDataLen +1);
             memcpy(buffer, latestMessage+ndefStartData + 5 + langCodeLen + 2,
