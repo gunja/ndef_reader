@@ -3,8 +3,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #define DEBUG_DUMP
 #define WIDE_INFORM
@@ -23,6 +25,13 @@ PN532::~PN532()
     if (fd >=0)
         close(fd);
     fd = -1;
+
+    if (dirPath != NULL)
+    {
+        free(dirPath);
+        dirPath = NULL;
+    }
+
     return;
 }
 
@@ -607,10 +616,13 @@ void PN532::treatBlockData()
             memset(buffer, 0, ndefDataLen +1);
             memcpy(buffer, latestMessage+ndefStartData + 5 + langCodeLen + 2,
                     ndefDataLen);
-            FILE * c = fopen(buffer, "w");
+            char * fullPath = new char[ndefDataLen +3 + strlen(dirPath)];
+            sprintf(fullPath, "%s/%s", dirPath, buffer);
+            FILE * c = fopen(fullPath, "w");
             fprintf(c, "c");
             fclose(c);
             delete[] buffer;
+            delete[]  fullPath;
             sendCMD_InAutoPoll();
         }
 
@@ -653,3 +665,49 @@ void PN532::dumpMifareTypeInfo()
        for(int i=0; i < latestMessage[9]; ++i) printf(" %02x", latestMessage[10 + i]);
        printf("\n");
 }
+
+bool PN532::setOutputDirectory(const char *dirName)
+{
+    bool r = createPathIfNeeded(dirName);
+    if (r) {
+        dirPath = strdup( dirName);
+    } else {
+        dirPath = strdup("/tmp");
+    }
+    return r;
+}
+
+bool PN532::createPathIfNeeded(const char *dirName)
+{
+    char * dirCopy = strdup(dirName);
+    char * oldPtr = NULL;
+    char * ptr;
+    int v;
+    ptr = strtok_r(dirCopy, "/", &oldPtr);
+
+    bool needHeaderInitialized = true;
+    char buffer[2000] = {0};
+    if (dirName[0] == '/'){
+        needHeaderInitialized = false;
+    }
+
+
+    while( ptr != NULL)
+    {
+        if (strcmp(ptr, "") != 0) {
+          if( not needHeaderInitialized) { 
+            strcat(buffer, "/");
+          }
+            needHeaderInitialized = false;
+            strcat(buffer, ptr);
+            v = mkdir(buffer, 0777);
+            if( v!= 0 && errno != EEXIST)
+                return false;
+        }
+        ptr = strtok_r(NULL, "/", &oldPtr);
+    }
+
+    free(dirCopy);
+    return true;
+}
+

@@ -3,18 +3,53 @@
 */
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include "pn532.h"
 
-char  SAMConf[] = "\x00\x00\xff\x03\xfd\xd4\x14\x01\x17\x00";
+int keepWork;
 
+void sigTermHandler(int)
+{
+    keepWork = 0;
+}
+
+void showHelp()
+{
+    printf("This app accepts -h and -d directory arguments\n");
+    return;
+}
 
 int main(int argc, char *argv[])
 {
     ssize_t r;
     int fd;
-    int keepWork = 1;
+    keepWork = 1;
     PN532 pn532;
+    char *requestedDir = NULL;
+
+    int opt;
+    while((opt = getopt(argc, argv, "hd:")) != -1)
+    {
+        switch (opt)
+        {
+            case 'h':
+                showHelp();
+                exit(EXIT_SUCCESS);
+                break;
+            case 'd':
+                requestedDir = optarg;
+                break;
+            default:
+                showHelp();
+                exit(EXIT_FAILURE);
+        }
+    }
+    if (requestedDir != NULL)
+    {
+        pn532.setOutputDirectory(requestedDir);
+    }
 
     while(keepWork)
     {

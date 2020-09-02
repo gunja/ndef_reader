@@ -29,6 +29,7 @@ class PN532
     bool isAckOrNack();
     bool isAck;
     bool isNack;
+    char * dirPath;
 
     bool canOpenEnvelope();
     bool canOpenLongMessageEnvelope();
@@ -46,12 +47,15 @@ class PN532
 
     void dumpFelicaCardInfo();
     void dumpMifareTypeInfo();
+
+    bool createPathIfNeeded(const char *dirName);
   public:
     PN532();
     ~PN532();
     bool openSerial(const char *);
     bool startCommunication();
     bool handleCommunication();
+    bool setOutputDirectory(const char *);
 };
 
 #pragma pack(push, 1)
