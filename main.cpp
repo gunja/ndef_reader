@@ -49,6 +49,8 @@ int main(int argc, char *argv[])
     if (requestedDir != NULL)
     {
         pn532.setOutputDirectory(requestedDir);
+    } else {
+        pn532.setOutputDirectory("./");
     }
 
     while(keepWork)
