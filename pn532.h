@@ -14,6 +14,7 @@ class PN532
     static const unsigned char ack[];
     static const unsigned char nack[];
     struct termios prev_sets;
+
     bool setSerialParams();
     bool warmUp();
     bool sendDeterministic(const unsigned char *payload, int sz);
@@ -21,27 +22,38 @@ class PN532
     char *sendReceivePayload(const char *payload, int);
     bool confirmAck();
     bool sendAck();
+
     char receivedBuffer[600];
     int receivedBytes;
     char latestMessage[300];
     int latestMessageLength;
-    char * readMessage();
-    bool isAckOrNack();
     bool isAck;
     bool isNack;
     char * dirPath;
+    int currentBlock;
 
+    enum {
+            NO_ERROR,
+            SEND_FAILURE,
+            ACK_RECEIVE_FAILURE,
+            RECEIVE_FAILURE,
+            RECEIVE_TIMEOUT,
+            CRC_FAILURE
+    } internalErrorCode;
+
+    char * readMessage();
+    bool isAckOrNack();
     bool canOpenEnvelope();
     bool canOpenLongMessageEnvelope();
     bool removeEnvelope();
 
     void dumpMessage();
     void treatInformational();
-    int currentBlock;
     bool sendCMD_readBlock(int);
     void treatBlockData();
 
     struct timeval messageReceivedLastStamp;
+
     bool sendCMD_InAutoPoll();
     bool treatAutoPollReply();
 
@@ -54,8 +66,10 @@ class PN532
     ~PN532();
     bool openSerial(const char *);
     bool startCommunication();
-    bool handleCommunication();
+    bool handleCommunication(int *keep = NULL);
     bool setOutputDirectory(const char *);
+    void closeSerial();
+    void delayCycle();
 };
 
 #pragma pack(push, 1)

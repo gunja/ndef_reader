@@ -17,7 +17,10 @@ void sigTermHandler(int)
 
 void showHelp()
 {
-    printf("This app accepts -h and -d directory arguments\n");
+    printf("This app accepts following arguments:\n");
+    printf("-h to display this help and exit\n");
+    printf("-d directory to set directory into which files will be generated (./ in case of nothing provided and /tmp if creation of files will fail\n");
+    printf("-p portFile   to override serial device to be opened (/dev/ttyS0 if nothing is provided, or requested serial device was not opened\n");
     return;
 }
 
@@ -28,9 +31,10 @@ int main(int argc, char *argv[])
     keepWork = 1;
     PN532 pn532;
     char *requestedDir = NULL;
+    char *requestedPort = NULL;
 
     int opt;
-    while((opt = getopt(argc, argv, "hd:")) != -1)
+    while((opt = getopt(argc, argv, "hd:p:")) != -1)
     {
         switch (opt)
         {
@@ -40,6 +44,9 @@ int main(int argc, char *argv[])
                 break;
             case 'd':
                 requestedDir = optarg;
+                break;
+            case 'p':
+                requestedPort = optarg;
                 break;
             default:
                 showHelp();
@@ -53,18 +60,29 @@ int main(int argc, char *argv[])
         pn532.setOutputDirectory("./");
     }
 
+    // Ctrl-C from keyboard, or SIGTERM from systemd
+    signal(SIGINT, sigTermHandler);
+    signal(SIGTERM, sigTermHandler);
+
     while(keepWork)
     {
-        if( pn532.openSerial("ttyS0"))
+        if( pn532.openSerial(requestedPort))
         {
+            bool communicationResult = false;
             if (pn532.startCommunication())
             {
-                pn532.handleCommunication();
+                communicationResult = pn532.handleCommunication(&keepWork);
+            }
+            // we can get here if handleCommunication failed
+            // or even startCommunication failed.
+            if (not communicationResult) {
+                pn532.closeSerial();
+                pn532.delayCycle();
             }
         } else {
 	        fprintf(stderr, "Failed to open Serial port\n");
         	sleep(1);
-	}
+        }
     }
 
     return 0;

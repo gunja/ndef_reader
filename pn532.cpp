@@ -11,6 +11,8 @@
 #define DEBUG_DUMP
 #define WIDE_INFORM
 
+#define DEFAULT_SERIAL_PORT "ttyS0"
+
 const unsigned char PN532::wakeup[] = "\x55\x55\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 const unsigned char PN532::messageHeader[]="\x00\x00\xff";
 const unsigned char PN532::ack[]  ={0x00, 0x00, 0xFF, 0x00, 0xff, 0x00};
@@ -22,9 +24,7 @@ PN532::PN532() : fd(-1), receivedBytes(0)
 
 PN532::~PN532()
 {
-    if (fd >=0)
-        close(fd);
-    fd = -1;
+    closeSerial();
 
     if (dirPath != NULL)
     {
@@ -38,12 +38,19 @@ PN532::~PN532()
 bool PN532::openSerial(const char *deviceName)
 {
     char buff[200];
-    sprintf(buff, "/dev/%s", deviceName);
+    if (deviceName == NULL) {
+            sprintf(buff, "/dev/%s", DEFAULT_SERIAL_PORT);
+    } else {
+        sprintf(buff, "%s", deviceName);
+    }
     fd = open(buff, O_RDWR | O_NOCTTY | O_NDELAY);
     if (fd >= 0)
     {
         setSerialParams();
     }
+    //here we suppose that message was received successfully
+    // even if there were no message
+    gettimeofday(&messageReceivedLastStamp, NULL);
     return (fd >= 0);
 }
 
@@ -71,6 +78,8 @@ bool PN532::startCommunication()
     printf("sam configuration\n");
 #endif
     sendReceivePayload("\xd4\x14\x01", 3);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -79,11 +88,15 @@ bool PN532::startCommunication()
     printf("diagnose\n");
 #endif
     sendReceivePayload("\xd4\x00\x00\x6c\x69\x62\x6e\x66\x63", 9);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
     //GetFirmwareVersion
     sendReceivePayload("\xd4\x02", 2);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -92,6 +105,8 @@ bool PN532::startCommunication()
     printf("set parameters\n");
 #endif
     sendReceivePayload("\xd4\x12\x14", 3);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -100,6 +115,8 @@ bool PN532::startCommunication()
     printf("read register\n");
 #endif
     sendReceivePayload("\xd4\x06\x63\x02\x63\x03\x63\x0d\x63\x38\x63\x3d", 12);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -108,6 +125,8 @@ bool PN532::startCommunication()
     printf("write register\n");
 #endif
     sendReceivePayload("\xd4\x08\x63\x02\x80\x63\x03\x80", 8);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -116,6 +135,8 @@ bool PN532::startCommunication()
     printf("rf configuration\n");
 #endif
     sendReceivePayload("\xd4\x32\x01\x00", 4);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -124,6 +145,8 @@ bool PN532::startCommunication()
     printf("rf configuration\n");
 #endif
     sendReceivePayload("\xd4\x32\x01\x01", 4);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -132,6 +155,8 @@ bool PN532::startCommunication()
     printf("rf configuration\n");
 #endif
     sendReceivePayload("\xd4\x32\x05\xff\xff\xff", 6);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -140,6 +165,8 @@ bool PN532::startCommunication()
     printf("read register\n");
 #endif
     sendReceivePayload("\xd4\x06\x63\x02\x63\x03\x63\x05\x63\x38\x63\x3c\x63\x3d", 14);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -148,6 +175,8 @@ bool PN532::startCommunication()
     printf("write register\n");
 #endif
     sendReceivePayload("\xd4\x08\x63\x05\x40\x63\x3c\x10", 8);
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -156,6 +185,8 @@ bool PN532::startCommunication()
     printf("in auto poll\n");
 #endif
     sendCMD_InAutoPoll();
+    if (internalErrorCode != NO_ERROR)
+        return false;
 #ifdef WIDE_INFORM
     dumpMessage();
 #endif
@@ -184,7 +215,7 @@ bool operator>(const struct timeval &a, const struct timeval &b)
         return (a.tv_usec > b.tv_usec);
 }
 
-bool PN532::handleCommunication()
+bool PN532::handleCommunication(int *keepWork)
 {
     // TODO handle errors on write (even if we dont' actually even write from here)
     struct timeval tv;
@@ -212,14 +243,15 @@ bool PN532::handleCommunication()
 #ifdef WIDE_INFORM
 			printf("timeout. reinit\n");
 #endif
-                        sendAck();
-                        confirmAck();
-                // TODO check return value
-                sendCMD_InAutoPoll();
-                        gettimeofday(&messageReceivedLastStamp, NULL);
+                return false;
             }
         }
-    } while( noErrors);
+        int keepW = 1;
+        if (keepWork != NULL)
+                keepW = *keepWork;
+    } while( noErrors && keepWork);
+    if (! keepWork)
+            return true;
     return false;
 }
 
@@ -355,13 +387,23 @@ bool PN532::confirmAck()
                 receivedBytes);
         return true;
     }
+    internalErrorCode = ACK_RECEIVE_FAILURE;
     return false;
 }
 
 char * PN532::sendReceivePayload(const char *payload, int sz)
 {
-    sendDeterministic(reinterpret_cast<const unsigned char*>(payload), sz);
-    confirmAck();
+    bool r;
+    r = sendDeterministic(reinterpret_cast<const unsigned char*>(payload), sz);
+    if (not r)
+    {
+        internalErrorCode = SEND_FAILURE;
+        return NULL;
+    }
+    r = confirmAck();
+    if ( not r)
+        return NULL;
+    internalErrorCode = NO_ERROR;
     return readMessage();
 }
 
@@ -388,6 +430,7 @@ char * PN532::readMessage()
                 receivedBytes +=r;
         }
     confirmAck();
+    internalErrorCode = NO_ERROR;
         if (canOpenEnvelope())
         {
             removeEnvelope();
@@ -465,9 +508,11 @@ bool PN532::removeEnvelope()
 	printf("in removeEnvelope\n"); dumpMessage();
 #endif
 	gettimeofday(&messageReceivedLastStamp, NULL);
+        internalErrorCode = NO_ERROR;
         return true;
     }
     receivedBytes -= len + 6;
+    internalErrorCode = CRC_FAILURE;
     return false;
 }
 
@@ -709,5 +754,19 @@ bool PN532::createPathIfNeeded(const char *dirName)
 
     free(dirCopy);
     return true;
+}
+
+void PN532::closeSerial()
+{
+    if (fd >=0)
+        close(fd);
+    fd = -1;
+}
+
+void PN532::delayCycle()
+{
+    //in case of problems, this
+    fprintf(stderr, "Breaking cycle for 20 seconds\nWaiting for connection restoration\n");
+    sleep(20);
 }
 
