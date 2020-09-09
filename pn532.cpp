@@ -599,19 +599,33 @@ void PN532::treatBlockData()
     }
     printf("\n");
 #endif
+    if ((latestMessage[2] & 0x3F) != 0)
+    {
+        //some of error bit are high.
+        fprintf(stderr, "Error (0x%02X) appeared during blocks"
+                        " reading out\n. Resetting\n",
+                        static_cast<int>(latestMessage[2] & 0x3F));
+        currentBlock = 0;
+        blockBytesReceived = 0;
+        sendCMD_InAutoPoll();
+        return;
+    }
     if (currentBlock == 0) {
         currentBlock += 4;
         sendCMD_readBlock(currentBlock);
+        blockBytesReceived = 0;
         return;
     }
-    if(currentBlock > 3 && currentBlock < 8)
+    if(currentBlock > 3)
     {
+        memcpy(blockInformation + blockBytesReceived, latestMessage + 3, latestMessageLength-3);
+        blockBytesReceived += latestMessageLength - 3;
         // here should be search for NDEF start
-        int ndefStartData = 0;
-        int index = 3;
-        while(ndefStartData == 0 && index < latestMessageLength)
+        int ndefStartData = -1;
+        int index = 0;
+        while(ndefStartData < 0 && index < blockBytesReceived)
         {
-                switch(static_cast<unsigned int>(latestMessage[index]))
+                switch(static_cast<unsigned int>(blockInformation[index]))
                 {
                         case 0:
                                 index++;
@@ -621,7 +635,7 @@ void PN532::treatBlockData()
 #ifdef WIDE_INFORM
                                 printf("ignorable TLV found\n");
 #endif
-                                index++; index += static_cast<unsigned int>(latestMessage[index]);
+                                index++; index += static_cast<unsigned int>(blockInformation[index]);
                                 break;
                         case 3:
 #ifdef WIDE_INFORM
@@ -632,45 +646,50 @@ void PN532::treatBlockData()
                 };
         }
     // d5 41 00 03 0b d1 01 07 54 00 32 30 30 30 30 37 fe 00 00
-        if (ndefStartData > 0)
+        if (ndefStartData >= 0)
         {
        int ndefLenByteLoc = ndefStartData + 1;
-        int langCodeLen = latestMessage[ndefStartData+6]& 0x3f;
-        int ndefDataLen = latestMessage[ndefStartData+1] - 5 - langCodeLen;
-        int wellKnownType = latestMessage[ndefStartData + 5];
+        int langCodeLen = blockInformation[ndefStartData+6]& 0x3f;
+        int ndefDataLen = blockInformation[ndefStartData+1] - 5 - langCodeLen;
+        int wellKnownType = blockInformation[ndefStartData + 5];
 #ifdef WIDE_INFORM
         printf("found NDEF: length =%d  record type = %02x\n", ndefDataLen,
                 wellKnownType);
 #endif
-        int terminatorPosition = ndefStartData + latestMessage[ndefStartData+1]+2;
-        if (terminatorPosition > latestMessageLength)
+        int terminatorPosition = ndefStartData + blockInformation[ndefStartData+1]+2;
+        if (terminatorPosition >= blockBytesReceived)
         {
 #ifdef WIDE_INFORM
-            fprintf(stderr, "Message expands beyong these blocks. Just ignoring\n");
+            fprintf(stderr, "Message expands beyong these blocks. Requesting further\n");
 #endif
-            sendCMD_InAutoPoll();
+            currentBlock += 4;
+            sendCMD_readBlock(currentBlock);
             return;
         }
-        if (static_cast<unsigned int>(latestMessage[ndefStartData + 
-                    latestMessage[ndefStartData+1]+2]) == 0xFE)
+        if (static_cast<unsigned int>(blockInformation[ndefStartData + 
+                    blockInformation[ndefStartData+1]+2]) == 0xFE)
         {
 #ifdef WIDE_INFORM
             printf("End of message found\nCreating file");
 #endif
             char *buffer = new char[ndefDataLen +1];
             memset(buffer, 0, ndefDataLen +1);
-            memcpy(buffer, latestMessage+ndefStartData + 5 + langCodeLen + 2,
+            memcpy(buffer, blockInformation+ndefStartData + 5 + langCodeLen + 2,
                     ndefDataLen);
             char * fullPath = new char[ndefDataLen +3 + strlen(dirPath)];
             sprintf(fullPath, "%s/%s", dirPath, buffer);
             FILE * c = fopen(fullPath, "w");
-            fprintf(c, "c");
-            fclose(c);
+            if (c != NULL) {
+                fprintf(c, "c");
+                fclose(c);
+            } else {
+                fprintf(stderr, "Failed to create and open file \"%s\". Working on\n",
+                                fullPath);
+            }
             delete[] buffer;
             delete[]  fullPath;
             sendCMD_InAutoPoll();
         }
-
 
         }
         else {

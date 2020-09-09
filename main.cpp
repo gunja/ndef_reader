@@ -61,8 +61,8 @@ int main(int argc, char *argv[])
     }
 
     // Ctrl-C from keyboard, or SIGTERM from systemd
-    signal(SIGINT, sigTermHandler);
-    signal(SIGTERM, sigTermHandler);
+    //signal(SIGINT, sigTermHandler);
+    //signal(SIGTERM, sigTermHandler);
 
     while(keepWork)
     {
