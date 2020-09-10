@@ -636,6 +636,7 @@ void PN532::treatBlockData()
                                 printf("ignorable TLV found\n");
 #endif
                                 index++; index += static_cast<unsigned int>(blockInformation[index]);
+				index++;
                                 break;
                         case 3:
 #ifdef WIDE_INFORM
