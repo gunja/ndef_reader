@@ -8,6 +8,8 @@
 #include <signal.h>
 #include "pn532.h"
 
+#include "generated.h"
+
 int keepWork;
 
 void sigTermHandler(int)
@@ -21,7 +23,15 @@ void showHelp()
     printf("-h to display this help and exit\n");
     printf("-d directory to set directory into which files will be generated (./ in case of nothing provided and /tmp if creation of files will fail\n");
     printf("-p portFile   to override serial device to be opened (/dev/ttyS0 if nothing is provided, or requested serial device was not opened\n");
+    printf("-v show version info of this particular build\n");
     return;
+}
+
+void showVersionInfo()
+{
+    printf("Build branch: %s\n", BRANCH);
+    printf("Build commit: %s\n", REVISION);
+    printf("Repo state on build was: %s\n", IS_DIRTY);
 }
 
 int main(int argc, char *argv[])
@@ -34,7 +44,7 @@ int main(int argc, char *argv[])
     char *requestedPort = NULL;
 
     int opt;
-    while((opt = getopt(argc, argv, "hd:p:")) != -1)
+    while((opt = getopt(argc, argv, "hd:p:v")) != -1)
     {
         switch (opt)
         {
@@ -48,6 +58,9 @@ int main(int argc, char *argv[])
             case 'p':
                 requestedPort = optarg;
                 break;
+            case 'v':
+                showVersionInfo();
+                exit(EXIT_SUCCESS);
             default:
                 showHelp();
                 exit(EXIT_FAILURE);
