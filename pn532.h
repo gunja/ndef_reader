@@ -26,6 +26,8 @@ class PN532
     char receivedBuffer[600];
     int receivedBytes;
     char latestMessage[300];
+    char blockInformation[400];
+    int blockBytesReceived;
     int latestMessageLength;
     bool isAck;
     bool isNack;
